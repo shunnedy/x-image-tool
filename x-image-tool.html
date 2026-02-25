@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>X Image Splitter</title>
+<style>
+/* ===== Reset & Variables ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #000000;
+  --surface: #15202b;
+  --surface2: #1e2732;
+  --surface3: #253341;
+  --border: #38444d;
+  --accent: #1d9bf0;
+  --accent-hover: #1a8cd8;
+  --text: #e7e9ea;
+  --text-secondary: #71767b;
+  --text-muted: #4d5a65;
+  --radius-sm: 4px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --gap: 2px;
+}
+
+html, body { height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ===== Header ===== */
+header {
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  height: 53px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
+.header-logo { width: 22px; height: 22px; fill: var(--text); flex-shrink: 0; }
+.header-title { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+.header-spacer { flex: 1; }
+.header-mode-badge {
+  display: none; align-items: center; gap: 6px;
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text-secondary); padding: 4px 12px;
+  border-radius: 20px; font-size: 12px; font-weight: 500;
+}
+.header-mode-badge.active {
+  display: flex; background: rgba(29,155,240,0.12);
+  border-color: rgba(29,155,240,0.3); color: var(--accent);
+}
+.header-mode-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+
+/* ===== Main Layout ===== */
+.main-layout {
+  display: grid;
+  grid-template-columns: 370px 1fr;
+  height: calc(100vh - 53px);
+  overflow: hidden;
+}
+
+/* ===== Left Panel ===== */
+.left-panel {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto; overflow-x: hidden;
+  display: flex; flex-direction: column; gap: 0;
+}
+.panel-section { padding: 16px; border-bottom: 1px solid var(--border); }
+.panel-section:last-child { border-bottom: none; }
+.section-label {
+  font-size: 11px; font-weight: 700; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;
+}
+
+/* ===== Drop Zone ===== */
+.drop-zone {
+  border: 1.5px dashed var(--border); border-radius: var(--radius);
+  padding: 28px 16px; text-align: center; cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  background: var(--surface2); position: relative;
+}
+.drop-zone:hover { border-color: var(--accent); background: rgba(29,155,240,0.04); }
+.drop-zone.dragover { border-color: var(--accent); border-style: solid; background: rgba(29,155,240,0.08); }
+.drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.drop-zone-icon { color: var(--accent); margin-bottom: 10px; display: flex; justify-content: center; }
+.drop-zone-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.drop-zone-hint { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+.drop-zone-hint span { display: block; }
+.drop-zone-tags { display: flex; justify-content: center; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.tag {
+  background: var(--surface3); color: var(--text-secondary);
+  font-size: 11px; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border);
+}
+
+/* ===== Thumbnail Strip ===== */
+#thumbSection { display: none; }
+.thumb-strip { display: flex; gap: 8px; flex-wrap: wrap; }
+.thumb-item {
+  position: relative; width: 72px; height: 72px;
+  border-radius: 8px; overflow: hidden;
+  border: 2px solid var(--border); cursor: pointer; transition: border-color 0.2s;
+}
+.thumb-item:hover { border-color: var(--accent); }
+.thumb-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb-remove {
+  position: absolute; top: 3px; right: 3px;
+  width: 18px; height: 18px; background: rgba(0,0,0,0.75);
+  border: 1px solid rgba(255,255,255,0.2); border-radius: 50%;
+  color: white; font-size: 11px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1; transition: background 0.15s;
+}
+.thumb-remove:hover { background: #f4212e; border-color: #f4212e; }
+.thumb-add {
+  width: 72px; height: 72px; border-radius: 8px;
+  border: 1.5px dashed var(--border); background: var(--surface2);
+  color: var(--text-secondary); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 3px;
+  cursor: pointer; font-size: 11px; transition: border-color 0.2s, color 0.2s; position: relative;
+}
+.thumb-add input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.thumb-add:hover { border-color: var(--accent); color: var(--accent); }
+.clear-btn {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-secondary); border-radius: 8px; padding: 6px 12px;
+  font-size: 12px; cursor: pointer; transition: all 0.2s; width: 100%; margin-top: 8px;
+}
+.clear-btn:hover { border-color: #f4212e; color: #f4212e; background: rgba(244,33,46,0.06); }
+
+/* ===== Split Editor ===== */
+#splitSection { display: none; }
+
+.split-editor {
+  position: relative; width: 100%; border-radius: 8px;
+  overflow: hidden; background: #000; cursor: default; user-select: none;
+}
+.split-editor img { width: 100%; display: block; pointer-events: none; }
+
+.divider-line {
+  position: absolute; left: 0; right: 0; height: 2px;
+  background: var(--accent); cursor: ns-resize; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 6px; transition: height 0.1s;
+}
+.divider-line::before, .divider-line::after {
+  content: ''; display: block; width: 24px; height: 2px;
+  background: rgba(255,255,255,0.5); border-radius: 1px;
+}
+.divider-line:hover, .divider-line.dragging { height: 3px; background: #fff; }
+.divider-line:hover::before, .divider-line:hover::after,
+.divider-line.dragging::before, .divider-line.dragging::after { background: var(--accent); }
+.divider-handle {
+  position: absolute; left: 50%; transform: translate(-50%, -50%);
+  background: var(--accent); border: 2px solid white;
+  border-radius: 50%; width: 16px; height: 16px;
+  cursor: ns-resize; z-index: 11; top: 50%; transition: transform 0.1s;
+}
+.divider-line:hover .divider-handle,
+.divider-line.dragging .divider-handle { transform: translate(-50%, -50%) scale(1.2); }
+.divider-label {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  background: var(--accent); color: white; font-size: 10px; font-weight: 700;
+  padding: 1px 5px; border-radius: 4px; pointer-events: none; white-space: nowrap;
+}
+.slice-label {
+  position: absolute; left: 6px; background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px); color: rgba(255,255,255,0.85);
+  font-size: 10px; font-weight: 600; padding: 2px 6px;
+  border-radius: 4px; pointer-events: none; letter-spacing: 0.02em;
+}
+
+/* ===== Split Count Switcher ===== */
+.split-count-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+}
+.split-count-label {
+  font-size: 11px; font-weight: 700; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.08em; flex-shrink: 0;
+}
+.split-count-btns {
+  display: flex; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 2px; gap: 2px; flex: 1;
+}
+.split-count-btn {
+  flex: 1; background: transparent; border: none;
+  color: var(--text-secondary); padding: 5px 8px;
+  border-radius: 6px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s; text-align: center;
+}
+.split-count-btn:hover:not(.active) { color: var(--text); background: rgba(255,255,255,0.05); }
+.split-count-btn.active { background: var(--accent); color: white; }
+
+/* ===== Slice Strip ===== */
+.slice-strip { display: grid; gap: 4px; margin-top: 8px; }
+.slice-thumb {
+  position: relative; border-radius: 6px; overflow: hidden;
+  border: 1px solid var(--border); background: var(--surface2);
+}
+.slice-thumb canvas { width: 100%; height: 100%; display: block; object-fit: cover; }
+.slice-num-badge {
+  position: absolute; top: 3px; left: 3px; background: rgba(0,0,0,0.7);
+  color: white; font-size: 9px; font-weight: 700; padding: 1px 4px; border-radius: 3px;
+}
+.slice-size-badge {
+  position: absolute; bottom: 3px; left: 3px; right: 3px; text-align: center;
+  background: rgba(0,0,0,0.6); color: rgba(255,255,255,0.75);
+  font-size: 9px; padding: 1px 2px; border-radius: 3px;
+}
+.slice-ratios { display: flex; height: 6px; border-radius: 3px; overflow: hidden; gap: 1px; margin-top: 6px; }
+.ratio-bar { height: 100%; border-radius: 2px; transition: flex 0.2s; }
+.ratio-bar:nth-child(1) { background: #1d9bf0; }
+.ratio-bar:nth-child(2) { background: #00ba7c; }
+.ratio-bar:nth-child(3) { background: #ff7a00; }
+.ratio-bar:nth-child(4) { background: #ff0000; }
+.slice-info-text { font-size: 11px; color: var(--text-secondary); margin-top: 4px; text-align: center; }
+
+/* ===== Size Status ===== */
+.size-status-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 10px; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px;
+}
+.size-status-label { font-size: 11px; color: var(--text-secondary); }
+.size-status-value { font-size: 12px; font-weight: 700; color: var(--text-muted); }
+.size-status-value.ok   { color: #00ba7c; }
+.size-status-value.warn { color: #ff7a00; }
+.size-status-value.over { color: #f4212e; }
+
+/* ===== Buttons ===== */
+.btn-primary {
+  background: var(--accent); color: white; border: none;
+  border-radius: 20px; padding: 10px 20px; font-size: 14px; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  gap: 8px; width: 100%; transition: background 0.2s, opacity 0.2s; letter-spacing: 0.01em;
+}
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary.loading { opacity: 0.7; cursor: wait; }
+.btn-ghost {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-secondary); border-radius: 20px; padding: 9px 20px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px; width: 100%; transition: all 0.2s;
+}
+.btn-ghost:hover { border-color: var(--text-secondary); color: var(--text); }
+
+/* ===== Right Panel ===== */
+.right-panel { overflow-y: auto; overflow-x: hidden; background: var(--bg); display: flex; flex-direction: column; }
+
+/* ===== Empty State ===== */
+#emptyState {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 16px; padding: 60px 40px; text-align: center;
+}
+.empty-icon { opacity: 0.15; color: var(--text); }
+.empty-title { font-size: 20px; font-weight: 700; color: var(--text); opacity: 0.5; }
+.empty-desc { font-size: 14px; color: var(--text-secondary); max-width: 280px; line-height: 1.6; }
+
+/* ===== Preview Area ===== */
+#previewArea { display: none; flex: 1; flex-direction: column; }
+.preview-toolbar {
+  padding: 14px 20px 12px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--bg); position: sticky; top: 0; z-index: 50;
+}
+.tabs {
+  display: flex; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 3px; gap: 2px;
+}
+.tab-btn {
+  background: transparent; border: none; color: var(--text-secondary);
+  padding: 6px 14px; border-radius: 7px; font-size: 13px;
+  font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.tab-btn:hover:not(.active) { color: var(--text); background: rgba(255,255,255,0.05); }
+.tab-btn.active { background: var(--accent); color: white; font-weight: 700; }
+.toolbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.img-count-badge {
+  background: var(--surface3); border: 1px solid var(--border);
+  color: var(--text-secondary); font-size: 12px; padding: 4px 10px; border-radius: 20px;
+}
+.preview-content { padding: 24px 20px; flex: 1; }
+#singleDeviceView { display: flex; justify-content: center; }
+.tweet-card-wrap { width: 100%; max-width: 620px; }
+#compareView { display: none; grid-template-columns: repeat(4, 1fr); gap: 16px; width: 100%; }
+.compare-col { display: flex; flex-direction: column; gap: 10px; }
+.compare-col-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-secondary); text-align: center;
+}
+#expandedView { display: none; justify-content: center; width: 100%; }
+.phone-mock {
+  width: 375px; max-width: 100%; background: var(--bg);
+  border: 1.5px solid var(--border); border-radius: 30px; overflow: hidden;
+  box-shadow: 0 0 0 6px var(--surface2), 0 0 0 7px var(--border);
+}
+.phone-notch-bar { height: 34px; background: var(--bg); display: flex; align-items: center; justify-content: center; }
+.phone-notch {
+  width: 90px; height: 22px; background: var(--surface2);
+  border-radius: 0 0 14px 14px; border: 1.5px solid var(--border); border-top: none;
+}
+.phone-content { max-height: 72vh; overflow-y: auto; }
+.phone-content::-webkit-scrollbar { width: 3px; }
+.phone-content::-webkit-scrollbar-thumb { background: var(--border); }
+.phone-nav-bar {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px 6px;
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
+}
+.phone-nav-back { color: var(--accent); font-size: 20px; line-height: 1; cursor: pointer; opacity: 0.9; }
+.phone-nav-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.phone-post-header { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px 8px; }
+.phone-avatar {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--surface3); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 700; color: var(--text-muted);
+}
+.phone-post-meta { flex: 1; }
+.phone-user-name { font-size: 14px; font-weight: 700; color: var(--text); }
+.phone-user-handle { font-size: 12px; color: var(--text-secondary); }
+.phone-post-text { font-size: 14px; color: var(--text); padding: 0 14px 10px; line-height: 1.5; }
+.expanded-img-stack { display: flex; flex-direction: column; gap: 4px; background: #000; padding: 0 12px; box-sizing: border-box; }
+.expanded-img-item { width: 100%; background: #000; overflow: hidden; position: relative; border-radius: 14px; }
+.expanded-ar-box { position: relative; width: 100%; height: 0; }
+.expanded-ar-box img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; object-fit: cover; }
+.expanded-img-item .slice-order-badge {
+  position: absolute; top: 6px; left: 6px;
+  background: rgba(0,0,0,0.65); color: white;
+  font-size: 11px; font-weight: 700; padding: 2px 6px;
+  border-radius: 10px; pointer-events: none;
+}
+.phone-post-footer {
+  padding: 10px 14px; display: flex; gap: 20px;
+  border-top: 1px solid var(--border); color: var(--text-secondary); font-size: 12px;
+}
+.phone-footer-item { display: flex; align-items: center; gap: 4px; }
+.expanded-caption { text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 14px; line-height: 1.6; }
+
+/* ===== Tweet Card ===== */
+.tweet-card {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 12px 16px; display: flex; gap: 12px; width: 100%;
+}
+.tweet-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--surface3); flex-shrink: 0; overflow: hidden; }
+.tweet-avatar-inner {
+  width: 100%; height: 100%; background: linear-gradient(135deg, var(--surface3) 0%, var(--border) 100%);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); font-size: 18px; font-weight: 700;
+}
+.tweet-body { flex: 1; min-width: 0; }
+.tweet-header { display: flex; align-items: baseline; gap: 6px; margin-bottom: 4px; flex-wrap: wrap; }
+.tweet-name { font-weight: 700; font-size: 14px; color: var(--text); }
+.tweet-handle { color: var(--text-secondary); font-size: 13px; }
+.tweet-time { color: var(--text-secondary); font-size: 13px; margin-left: auto; }
+.tweet-text { font-size: 14px; color: var(--text); margin-bottom: 10px; line-height: 1.5; }
+
+/* ===== Image Grid ===== */
+.image-grid-wrap { border-radius: var(--radius); overflow: hidden; width: 100%; }
+.image-grid {
+  display: grid; width: 100%; gap: var(--gap);
+  background: var(--border); aspect-ratio: 16 / 9;
+  border-radius: inherit; overflow: hidden;
+}
+.grid-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; aspect-ratio: unset; }
+.grid-2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+.grid-3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.grid-3 .cell-0 { grid-row: 1 / 3; }
+.grid-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.img-cell { overflow: hidden; background: var(--surface); position: relative; display: flex; align-items: center; justify-content: center; }
+.img-cell img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; transition: transform 0.3s; }
+.img-cell:hover img { transform: scale(1.02); }
+.img-cell-empty { background: var(--surface2); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 12px; }
+
+/* Device overrides */
+.device-ios .tweet-card { border-radius: 20px; }
+.device-ios .image-grid-wrap { border-radius: 16px; }
+.device-android .tweet-card { border-radius: 12px; }
+.device-android .image-grid-wrap { border-radius: 10px; }
+.device-pc .tweet-card { border-radius: 16px; }
+.device-pc .image-grid-wrap { border-radius: 16px; }
+
+.tweet-actions { display: flex; gap: 16px; margin-top: 10px; }
+.action-item { display: flex; align-items: center; gap: 5px; color: var(--text-secondary); font-size: 13px; cursor: pointer; }
+.action-item svg { opacity: 0.7; }
+.crop-indicator { position: absolute; inset: 0; border: 2px solid rgba(29,155,240,0.6); pointer-events: none; display: none; }
+.img-cell:hover .crop-indicator { display: block; }
+.info-chip {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
+  color: var(--text-secondary); background: var(--surface2);
+  border: 1px solid var(--border); padding: 3px 8px; border-radius: 12px;
+}
+
+/* ===== Modal Overlay ===== */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.78);
+  backdrop-filter: blur(6px); z-index: 600;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px; animation: mFadeIn 0.15s ease;
+}
+.modal-overlay.hidden { display: none; }
+@keyframes mFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mSlideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ===== Compress Modal ===== */
+.compress-modal-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 26px 24px 22px;
+  max-width: 380px; width: 100%;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  animation: mSlideUp 0.2s ease;
+}
+.modal-title { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.compress-warn { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 18px; }
+.compress-warn strong { color: #ff7a00; }
+.compress-modal-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+
+/* ===== Responsive ===== */
+@media (max-width: 860px) {
+  .main-layout { grid-template-columns: 1fr; height: auto; overflow: visible; }
+  body { overflow-y: auto; }
+  .left-panel { border-right: none; border-bottom: 1px solid var(--border); overflow: visible; }
+  .right-panel { overflow: visible; }
+  #compareView { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .preview-toolbar { flex-direction: column; align-items: flex-start; }
+  .toolbar-right { margin-left: 0; }
+  .tabs .tab-btn { padding: 5px 10px; font-size: 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== Resize Proposal Modal ===== -->
+<div class="modal-overlay hidden" id="resizeModal">
+  <div class="compress-modal-box">
+    <div class="modal-title">⚠ ファイルサイズ超過</div>
+    <div class="compress-warn" id="resizeModalDesc">
+      最大スライスが <strong>5 MB</strong> を超えています。<br>
+      解像度を <strong>10% 下げる</strong>ことでPNG制限内に収めますか？
+    </div>
+    <div class="compress-modal-actions">
+      <button class="btn-primary" id="resizeConfirmBtn">解像度を10%下げてPNGで保存</button>
+      <button class="btn-ghost" id="resizeCancelBtn">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== JPEG Fallback Alert Modal ===== -->
+<div class="modal-overlay hidden" id="jpegModal">
+  <div class="compress-modal-box">
+    <div class="modal-title">⚠ PNG維持困難</div>
+    <div class="compress-warn" id="jpegModalDesc">
+      リサイズ後もファイルサイズが <strong>5 MB</strong> を超えています。<br>
+      JPEGに変換してダウンロードしますか？
+    </div>
+    <div class="compress-modal-actions">
+      <button class="btn-primary" id="jpegConfirmBtn">JPEGでダウンロード</button>
+      <button class="btn-ghost" id="jpegCancelBtn">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Header ===== -->
+<header>
+  <svg class="header-logo" viewBox="0 0 24 24">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L2.4 2.25h6.312l4.27 5.636L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z"/>
+  </svg>
+  <span class="header-title">Image Splitter</span>
+  <span class="header-spacer"></span>
+  <span class="header-mode-badge" id="headerModeBadge">
+    <span class="dot"></span>
+    <span id="headerModeText">縦4分割モード</span>
+  </span>
+</header>
+
+<!-- ===== Main ===== -->
+<div class="main-layout">
+
+  <!-- ===== Left Panel ===== -->
+  <div class="left-panel">
+
+    <!-- Drop Zone -->
+    <div class="panel-section">
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept="image/*" multiple>
+        <div class="drop-zone-icon">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        <div class="drop-zone-title">画像をドロップ</div>
+        <div class="drop-zone-hint"><span>またはクリックして選択</span></div>
+        <div class="drop-zone-tags">
+          <span class="tag">1枚 → 縦分割</span>
+          <span class="tag">2〜4枚 → プレビュー</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Thumbnail Section -->
+    <div class="panel-section" id="thumbSection">
+      <div class="section-label">読み込み済み画像</div>
+      <div class="thumb-strip" id="thumbStrip"></div>
+      <button class="clear-btn" id="clearBtn">すべてクリア</button>
+    </div>
+
+    <!-- Split Editor Section -->
+    <div class="panel-section" id="splitSection">
+      <div class="section-label">分割位置を調整</div>
+
+      <!-- Split count switcher -->
+      <div class="split-count-row">
+        <span class="split-count-label">分割数</span>
+        <div class="split-count-btns" id="splitCountBtns">
+          <button class="split-count-btn" data-n="2">2分割</button>
+          <button class="split-count-btn" data-n="3">3分割</button>
+          <button class="split-count-btn active" data-n="4">4分割</button>
+        </div>
+      </div>
+
+      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">境界線をドラッグして高さを調整</p>
+
+      <!-- Split editor -->
+      <div class="split-editor" id="splitEditor">
+        <img id="splitImg" src="" alt="">
+      </div>
+
+      <!-- Slice thumbnails -->
+      <div class="slice-strip" id="sliceStrip"></div>
+
+      <!-- Height ratio bar -->
+      <div class="slice-ratios" id="sliceRatios"></div>
+      <div class="slice-info-text" id="sliceInfoText"></div>
+
+      <!-- Size status -->
+      <div class="size-status-row" id="sizeStatusRow" style="margin-top:14px;display:none;">
+        <span class="size-status-label">推定PNG最大サイズ（1枚）</span>
+        <span class="size-status-value" id="sizeStatusValue">計算中…</span>
+      </div>
+
+      <!-- Download -->
+      <div style="margin-top:8px;">
+        <button class="btn-primary" id="downloadBtn" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span id="downloadBtnText">ZIPでダウンロード</span>
+        </button>
+      </div>
+    </div>
+
+  </div><!-- /left-panel -->
+
+  <!-- ===== Right Panel ===== -->
+  <div class="right-panel">
+
+    <!-- Empty State -->
+    <div id="emptyState">
+      <div class="empty-icon">
+        <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8">
+          <rect x="3" y="3" width="18" height="18" rx="3"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+      </div>
+      <div class="empty-title">プレビュー待機中</div>
+      <div class="empty-desc">左の入力エリアに画像をドラッグ＆ドロップしてください</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+        <div class="info-chip">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          1枚: 縦分割してZIPダウンロード
+        </div>
+        <div class="info-chip">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          2〜4枚: デバイス別プレビュー
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview Area -->
+    <div id="previewArea">
+      <div class="preview-toolbar">
+        <div class="tabs" id="deviceTabs">
+          <button class="tab-btn active" data-device="pc">PC</button>
+          <button class="tab-btn" data-device="ios">iOS</button>
+          <button class="tab-btn" data-device="android">Android</button>
+          <button class="tab-btn" data-device="compare">比較</button>
+          <button class="tab-btn" data-device="expanded">縦表示</button>
+        </div>
+        <div class="toolbar-right">
+          <span class="img-count-badge" id="imgCountBadge">4枚</span>
+        </div>
+      </div>
+      <div class="preview-content">
+        <div id="singleDeviceView">
+          <div class="tweet-card-wrap" id="tweetCardContainer"></div>
+        </div>
+        <div id="compareView">
+          <div class="compare-col" id="comparePC">
+            <div class="compare-col-title">PC</div>
+            <div id="comparePCCard"></div>
+          </div>
+          <div class="compare-col" id="compareIOS">
+            <div class="compare-col-title">iOS</div>
+            <div id="compareIOSCard"></div>
+          </div>
+          <div class="compare-col" id="compareAndroid">
+            <div class="compare-col-title">Android</div>
+            <div id="compareAndroidCard"></div>
+          </div>
+          <div class="compare-col" id="compareExpandedCol">
+            <div class="compare-col-title">縦表示</div>
+            <div id="compareExpandedCard"></div>
+          </div>
+        </div>
+        <div id="expandedView">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;">
+            <div class="phone-mock" id="phoneMock">
+              <div class="phone-notch-bar"><div class="phone-notch"></div></div>
+              <div class="phone-content" id="phoneContent">
+                <div class="phone-nav-bar">
+                  <span class="phone-nav-back">‹</span>
+                  <span class="phone-nav-title">ポスト</span>
+                </div>
+                <div class="phone-post-header">
+                  <div class="phone-avatar">X</div>
+                  <div class="phone-post-meta">
+                    <div class="phone-user-name">ユーザー名</div>
+                    <div class="phone-user-handle">@username · 1時間</div>
+                  </div>
+                </div>
+                <div class="phone-post-text">画像のプレビューです。</div>
+                <div class="expanded-img-stack" id="expandedImgStack"></div>
+                <div class="phone-post-footer">
+                  <span class="phone-footer-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> 12</span>
+                  <span class="phone-footer-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg> 34</span>
+                  <span class="phone-footer-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg> 256</span>
+                </div>
+              </div>
+            </div>
+            <div class="expanded-caption" id="expandedCaption"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /right-panel -->
+</div><!-- /main-layout -->
+
+<!-- CDN Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  mode: null,            // 'split' | 'preview'
+  images: [],            // [{ file, dataUrl, img }]
+  device: 'pc',
+  dividers: [25, 50, 75], // % from top (splitCount-1 dividers)
+  sliceCanvases: [],
+  splitCount: 4,         // 2 | 3 | 4
+};
+
+const DEVICE = {
+  pc:      { width: 600 },
+  ios:     { width: 390 },
+  android: { width: 411 },
+};
+
+// ============================================================
+// DOM REFS
+// ============================================================
+const $ = id => document.getElementById(id);
+const dropZone        = $('dropZone');
+const fileInput       = $('fileInput');
+const thumbSection    = $('thumbSection');
+const thumbStrip      = $('thumbStrip');
+const clearBtn        = $('clearBtn');
+const splitSection    = $('splitSection');
+const splitEditor     = $('splitEditor');
+const splitImg        = $('splitImg');
+const sliceStrip      = $('sliceStrip');
+const sliceRatios     = $('sliceRatios');
+const sliceInfoText   = $('sliceInfoText');
+const downloadBtn     = $('downloadBtn');
+const downloadBtnText = $('downloadBtnText');
+const emptyState      = $('emptyState');
+const previewArea     = $('previewArea');
+const deviceTabs      = $('deviceTabs');
+const imgCountBadge   = $('imgCountBadge');
+const tweetCardContainer = $('tweetCardContainer');
+const singleDeviceView   = $('singleDeviceView');
+const compareView        = $('compareView');
+const expandedView       = $('expandedView');
+const expandedImgStack   = $('expandedImgStack');
+const expandedCaption    = $('expandedCaption');
+const headerModeBadge    = $('headerModeBadge');
+const headerModeText     = $('headerModeText');
+const sizeStatusRow      = $('sizeStatusRow');
+const sizeStatusValue    = $('sizeStatusValue');
+const resizeModal        = $('resizeModal');
+const jpegModal          = $('jpegModal');
+
+// ============================================================
+// SPLIT COUNT SWITCHER (inline in splitSection)
+// ============================================================
+$('splitCountBtns').querySelectorAll('.split-count-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const n = parseInt(btn.dataset.n);
+    if (n === state.splitCount) return;
+    setSplitCount(n);
+  });
+});
+
+function setSplitCount(n) {
+  state.splitCount = n;
+  state.dividers = equalDividers(n);
+  updateSplitCountBtns();
+  if (state.mode === 'split' && state.images[0]) {
+    renderSplitEditor();
+    renderPreview();
+  }
+  updateBadges();
+}
+
+function updateSplitCountBtns() {
+  $('splitCountBtns').querySelectorAll('.split-count-btn').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.n) === state.splitCount);
+  });
+}
+
+function equalDividers(n) {
+  const d = [];
+  for (let i = 1; i < n; i++) d.push((i / n) * 100);
+  return d;
+}
+
+// ============================================================
+// FILE HANDLING
+// ============================================================
+dropZone.addEventListener('click', (e) => {
+  if (e.target === fileInput) return;
+  fileInput.click();
+});
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', (e) => { if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove('dragover'); });
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+  handleFiles(files);
+});
+fileInput.addEventListener('change', (e) => { handleFiles(Array.from(e.target.files)); fileInput.value = ''; });
+clearBtn.addEventListener('click', () => {
+  state.images = []; state.sliceCanvases = []; state.mode = null;
+  updateUI();
+});
+
+async function handleFiles(files) {
+  const slots = 4 - state.images.length;
+  files = files.slice(0, slots);
+  if (!files.length) return;
+
+  const wasEmpty = state.images.length === 0;
+
+  for (const file of files) {
+    const dataUrl = await readAsDataURL(file);
+    const img = await loadImage(dataUrl);
+    state.images.push({ file, dataUrl, img });
+  }
+
+  if (wasEmpty && state.images.length === 1) {
+    state.mode = 'split';
+    state.dividers = equalDividers(state.splitCount);
+  } else if (state.images.length > 1) {
+    state.mode = 'preview';
+  }
+
+  updateUI();
+}
+
+function readAsDataURL(file) {
+  return new Promise(resolve => {
+    const r = new FileReader();
+    r.onload = e => resolve(e.target.result);
+    r.readAsDataURL(file);
+  });
+}
+function loadImage(src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.src = src;
+  });
+}
+
+// ============================================================
+// THUMBNAIL STRIP
+// ============================================================
+function renderThumbs() {
+  thumbStrip.innerHTML = '';
+  state.images.forEach((item, i) => {
+    const div = document.createElement('div');
+    div.className = 'thumb-item';
+    div.innerHTML = `<img src="${item.dataUrl}" alt="画像${i+1}"><button class="thumb-remove" data-i="${i}" title="削除">×</button>`;
+    thumbStrip.appendChild(div);
+  });
+  if (state.images.length > 0 && state.images.length < 4 && state.mode === 'preview') {
+    const addBtn = document.createElement('label');
+    addBtn.className = 'thumb-add';
+    addBtn.title = '画像を追加';
+    addBtn.innerHTML = `
+      <input type="file" accept="image/*" multiple style="position:absolute;inset:0;opacity:0;cursor:pointer;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span>追加</span>`;
+    addBtn.querySelector('input').addEventListener('change', e => { handleFiles(Array.from(e.target.files)); e.target.value = ''; });
+    thumbStrip.appendChild(addBtn);
+  }
+  thumbStrip.querySelectorAll('.thumb-remove').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const i = parseInt(btn.dataset.i);
+      state.images.splice(i, 1);
+      state.sliceCanvases = [];
+      if (state.images.length === 0) {
+        state.mode = null;
+      } else if (state.images.length === 1) {
+        state.mode = 'split';
+        state.dividers = equalDividers(state.splitCount);
+      } else {
+        state.mode = 'preview';
+      }
+      updateUI();
+    });
+  });
+}
+
+// ============================================================
+// MASTER UI UPDATE
+// ============================================================
+function updateUI() {
+  const has = state.images.length > 0;
+  emptyState.style.display    = has ? 'none'  : 'flex';
+  previewArea.style.display   = has ? 'flex'  : 'none';
+  thumbSection.style.display  = has ? 'block' : 'none';
+  splitSection.style.display  = (state.mode === 'split') ? 'block' : 'none';
+
+  updateBadges();
+  renderThumbs();
+  if (state.mode === 'split') renderSplitEditor();
+  renderPreview();
+}
+
+function updateBadges() {
+  const has = state.images.length > 0;
+  if (has) {
+    headerModeBadge.classList.add('active');
+    if (state.mode === 'split') {
+      headerModeText.textContent = `縦${state.splitCount}分割モード`;
+    } else {
+      headerModeText.textContent = `${state.images.length}枚プレビュー`;
+    }
+  } else {
+    headerModeBadge.classList.remove('active');
+  }
+  if (state.mode === 'split') {
+    imgCountBadge.textContent = `${state.splitCount}分割`;
+    downloadBtnText.textContent = `${state.splitCount}枚をZIPでダウンロード`;
+  } else {
+    imgCountBadge.textContent = `${state.images.length}枚`;
+  }
+}
+
+// ============================================================
+// DEVICE TABS
+// ============================================================
+deviceTabs.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    deviceTabs.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.device = btn.dataset.device;
+    renderPreview();
+  });
+});
+
+// ============================================================
+// PREVIEW RENDERING
+// ============================================================
+function renderPreview() {
+  if (!state.images.length) return;
+  if (state.device === 'compare') {
+    singleDeviceView.style.display = 'none';
+    compareView.style.display      = 'grid';
+    expandedView.style.display     = 'none';
+    renderCompare();
+  } else if (state.device === 'expanded') {
+    singleDeviceView.style.display = 'none';
+    compareView.style.display      = 'none';
+    expandedView.style.display     = 'flex';
+    renderExpanded();
+  } else {
+    singleDeviceView.style.display = 'flex';
+    compareView.style.display      = 'none';
+    expandedView.style.display     = 'none';
+    renderSingleDevice(state.device, tweetCardContainer);
+  }
+}
+
+function renderSingleDevice(device, container) {
+  container.innerHTML = '';
+  container.className = `tweet-card-wrap device-${device}`;
+  const cfg = DEVICE[device];
+  container.style.maxWidth = cfg.width + 'px';
+  container.appendChild(buildTweetCard(device));
+}
+
+function renderCompare() {
+  ['pc', 'ios', 'android'].forEach(dev => {
+    const idMap = { pc: 'comparePCCard', ios: 'compareIOSCard', android: 'compareAndroidCard' };
+    const container = $(idMap[dev]);
+    container.innerHTML = '';
+    container.className = `device-${dev}`;
+    const wrap = document.createElement('div');
+    wrap.style.maxWidth = DEVICE[dev].width + 'px';
+    wrap.style.width = '100%';
+    wrap.appendChild(buildTweetCard(dev));
+    container.appendChild(wrap);
+  });
+  const expandedContainer = $('compareExpandedCard');
+  expandedContainer.innerHTML = '';
+  const mock = document.createElement('div');
+  mock.className = 'phone-mock';
+  mock.style.width = '100%';
+  mock.innerHTML = `
+    <div class="phone-notch-bar"><div class="phone-notch"></div></div>
+    <div class="phone-content">
+      <div class="phone-nav-bar"><span class="phone-nav-back">‹</span><span class="phone-nav-title">ポスト</span></div>
+      <div class="phone-post-header"><div class="phone-avatar">X</div><div class="phone-post-meta"><div class="phone-user-name">ユーザー名</div><div class="phone-user-handle">@username · 1時間</div></div></div>
+      <div class="phone-post-text">画像のプレビューです。</div>
+      <div class="expanded-img-stack" id="compareExpandedImgStack"></div>
+      <div class="phone-post-footer">
+        <span class="phone-footer-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> 12</span>
+        <span class="phone-footer-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg> 34</span>
+        <span class="phone-footer-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg> 256</span>
+      </div>
+    </div>`;
+  expandedContainer.appendChild(mock);
+  buildExpandedStack($('compareExpandedImgStack'));
+}
+
+function buildExpandedStack(stackEl) {
+  const srcs = getDisplayImages();
+  stackEl.innerHTML = '';
+  srcs.forEach((src, i) => {
+    let pbRaw;
+    if (state.mode === 'split' && state.sliceCanvases[i]) {
+      const c = state.sliceCanvases[i];
+      pbRaw = c.height / c.width * 100;
+    } else if (state.images[i]) {
+      const el = state.images[i].img;
+      pbRaw = el.naturalHeight / el.naturalWidth * 100;
+    } else {
+      pbRaw = 56.25;
+    }
+    const paddingBottom = Math.max(pbRaw, 20).toFixed(4) + '%';
+    const item = document.createElement('div');
+    item.className = 'expanded-img-item';
+    const ratioBox = document.createElement('div');
+    ratioBox.className = 'expanded-ar-box';
+    ratioBox.style.paddingBottom = paddingBottom;
+    const img = document.createElement('img');
+    img.src = src; img.alt = `画像${i+1}`;
+    const badge = document.createElement('span');
+    badge.className = 'slice-order-badge'; badge.textContent = i + 1;
+    ratioBox.appendChild(img);
+    item.appendChild(ratioBox); item.appendChild(badge);
+    stackEl.appendChild(item);
+  });
+  return srcs.length;
+}
+
+function renderExpanded() {
+  const count = buildExpandedStack(expandedImgStack);
+  if (state.mode === 'split') {
+    const bounds = sliceBounds();
+    const ratios = [];
+    for (let i = 0; i < state.splitCount; i++) ratios.push(`${(bounds[i+1]-bounds[i]).toFixed(1)}%`);
+    expandedCaption.innerHTML =
+      `縦表示シミュレーション（スライス高さ比率: ${ratios.join(' / ')}）<br>` +
+      `<span style="color:var(--accent)">等分に近いほど自然な分割アートになります</span><br>` +
+      `<span style="color:var(--text-secondary);font-size:11px;">※ 各画像の角丸（約14px）でスライス境界がクリップされます</span>`;
+  } else {
+    expandedCaption.innerHTML =
+      `縦表示シミュレーション（${count}枚）<br>` +
+      `<span style="color:var(--text-muted)">モバイルでポストを開いた際のイメージです</span>`;
+  }
+}
+
+function buildTweetCard(device) {
+  const card = document.createElement('div');
+  card.className = 'tweet-card';
+  const avatar = document.createElement('div');
+  avatar.className = 'tweet-avatar';
+  avatar.innerHTML = '<div class="tweet-avatar-inner">X</div>';
+  const body = document.createElement('div');
+  body.className = 'tweet-body';
+  body.innerHTML = `
+    <div class="tweet-header">
+      <span class="tweet-name">ユーザー名</span>
+      <span class="tweet-handle">@username</span>
+      <span class="tweet-time">· 1時間</span>
+    </div>
+    <div class="tweet-text">画像のプレビューです。</div>`;
+  const grid = buildImageGrid(device);
+  if (grid) body.appendChild(grid);
+  body.insertAdjacentHTML('beforeend', `
+    <div class="tweet-actions">
+      <span class="action-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>12</span>
+      <span class="action-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>34</span>
+      <span class="action-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>256</span>
+    </div>`);
+  card.appendChild(avatar); card.appendChild(body);
+  return card;
+}
+
+let _sliceUrlCache = [];
+function getDisplayImages() {
+  if (state.mode === 'split') {
+    if (!state.sliceCanvases.length) return [];
+    if (!_sliceUrlCache.length) {
+      _sliceUrlCache = state.sliceCanvases.map(c => c.toDataURL('image/jpeg', 0.85));
+    }
+    return _sliceUrlCache;
+  }
+  return state.images.map(i => i.dataUrl);
+}
+
+function buildImageGrid(device) {
+  const srcs = getDisplayImages();
+  const count = srcs.length;
+  if (!count) return null;
+  const wrap = document.createElement('div');
+  wrap.className = 'image-grid-wrap';
+  const grid = document.createElement('div');
+  const gridCount = Math.min(count, 4);
+  grid.className = `image-grid grid-${gridCount}`;
+  srcs.slice(0, 4).forEach((src, i) => {
+    const cell = document.createElement('div');
+    cell.className = `img-cell cell-${i}`;
+    const img = document.createElement('img');
+    img.src = src; img.alt = `画像${i+1}`;
+    img.style.objectFit = 'cover'; img.style.objectPosition = 'center';
+    cell.appendChild(img);
+    grid.appendChild(cell);
+  });
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+// ============================================================
+// SPLIT EDITOR
+// ============================================================
+function renderSplitEditor() {
+  const item = state.images[0];
+  if (!item) return;
+  splitImg.src = item.dataUrl;
+
+  const containerW = splitEditor.offsetWidth || 310;
+  const ratio = item.img.naturalWidth / item.img.naturalHeight;
+  const maxH = Math.floor(window.innerHeight * 0.60);
+  const containerH = Math.min(Math.round(containerW / ratio), maxH);
+  splitEditor.style.height = containerH + 'px';
+
+  splitEditor.querySelectorAll('.divider-line, .slice-label').forEach(el => el.remove());
+
+  const N = state.splitCount;
+  state.dividers.forEach((pct, idx) => {
+    const line = createDividerLine(idx, pct, containerH);
+    splitEditor.appendChild(line);
+  });
+
+  const bounds = sliceBounds();
+  for (let i = 0; i < N; i++) {
+    const midPct = (bounds[i] + bounds[i+1]) / 2;
+    const label = document.createElement('div');
+    label.className = 'slice-label';
+    label.dataset.slice = i;
+    label.style.top = midPct + '%';
+    label.style.transform = 'translateY(-50%)';
+    label.textContent = `スライス ${i+1}`;
+    splitEditor.appendChild(label);
+  }
+
+  drawSlices();
+}
+
+function createDividerLine(idx, pct, containerH) {
+  const line = document.createElement('div');
+  line.className = 'divider-line';
+  line.dataset.idx = idx;
+  line.style.top = pct + '%';
+  const handle = document.createElement('div');
+  handle.className = 'divider-handle';
+  line.appendChild(handle);
+  const labelEl = document.createElement('span');
+  labelEl.className = 'divider-label';
+  labelEl.textContent = `${pct.toFixed(0)}%`;
+  line.appendChild(labelEl);
+
+  line.addEventListener('mousedown', (e) => { e.preventDefault(); startDrag(e.clientY, idx, containerH, line, labelEl); });
+  line.addEventListener('touchstart', (e) => { e.preventDefault(); startDrag(e.touches[0].clientY, idx, containerH, line, labelEl); }, { passive: false });
+  return line;
+}
+
+function startDrag(startClientY, idx, containerH, lineEl, labelEl) {
+  const startPct = state.dividers[idx];
+  lineEl.classList.add('dragging');
+  const N = state.splitCount;
+
+  const onMove = (clientY) => {
+    const dy = clientY - startClientY;
+    const delta = (dy / containerH) * 100;
+    let newPct = startPct + delta;
+    const lo = idx === 0 ? 5 : state.dividers[idx - 1] + 5;
+    const hi = idx === N - 2 ? 95 : state.dividers[idx + 1] - 5;
+    newPct = Math.max(lo, Math.min(hi, newPct));
+    state.dividers[idx] = newPct;
+    lineEl.style.top = newPct + '%';
+    if (labelEl) labelEl.textContent = `${newPct.toFixed(0)}%`;
+
+    const bounds = sliceBounds();
+    splitEditor.querySelectorAll('.slice-label').forEach(sl => {
+      const i = parseInt(sl.dataset.slice);
+      sl.style.top = ((bounds[i] + bounds[i+1]) / 2) + '%';
+    });
+    drawSlices();
+    updateRatioBar();
+    renderPreview();
+  };
+
+  const onMouseMove = (e) => onMove(e.clientY);
+  const onMouseUp = () => {
+    lineEl.classList.remove('dragging');
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+  };
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup', onMouseUp);
+
+  const onTouchMove = (e) => { e.preventDefault(); onMove(e.touches[0].clientY); };
+  const onTouchEnd = () => {
+    lineEl.classList.remove('dragging');
+    document.removeEventListener('touchmove', onTouchMove);
+    document.removeEventListener('touchend', onTouchEnd);
+  };
+  document.addEventListener('touchmove', onTouchMove, { passive: false });
+  document.addEventListener('touchend', onTouchEnd);
+}
+
+function sliceBounds() { return [0, ...state.dividers, 100]; }
+
+function drawSlices() {
+  _sliceUrlCache = [];
+  const item = state.images[0];
+  if (!item) return;
+  const { img } = item;
+  const W = img.naturalWidth;
+  const H = img.naturalHeight;
+  const bounds = sliceBounds();
+  const N = state.splitCount;
+
+  state.sliceCanvases = [];
+  sliceStrip.innerHTML = '';
+  sliceStrip.style.gridTemplateColumns = `repeat(${N}, 1fr)`;
+
+  for (let i = 0; i < N; i++) {
+    const y0 = Math.round((bounds[i]     / 100) * H);
+    const y1 = Math.round((bounds[i+1]   / 100) * H);
+    const sliceH = y1 - y0;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = sliceH;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, y0, W, sliceH, 0, 0, W, sliceH);
+    state.sliceCanvases.push(canvas);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'slice-thumb';
+    const sliceAR = Math.max(0.25, Math.min(3, W / sliceH));
+    wrap.style.aspectRatio = `${sliceAR}`;
+
+    const THUMB_W = 80;
+    const THUMB_H = Math.round(THUMB_W / sliceAR);
+    const thumbCanvas = document.createElement('canvas');
+    thumbCanvas.width = THUMB_W; thumbCanvas.height = THUMB_H;
+    const tCtx = thumbCanvas.getContext('2d');
+    tCtx.drawImage(img, 0, y0, W, sliceH, 0, 0, THUMB_W, THUMB_H);
+    wrap.appendChild(thumbCanvas);
+
+    const numBadge = document.createElement('span');
+    numBadge.className = 'slice-num-badge'; numBadge.textContent = i + 1;
+    wrap.appendChild(numBadge);
+
+    const sizeBadge = document.createElement('span');
+    sizeBadge.className = 'slice-size-badge';
+    sizeBadge.textContent = `${(bounds[i+1]-bounds[i]).toFixed(1)}%`;
+    wrap.appendChild(sizeBadge);
+
+    sliceStrip.appendChild(wrap);
+  }
+
+  updateRatioBar();
+  downloadBtn.disabled = false;
+  updateSizeStatus();
+}
+
+function updateRatioBar() {
+  const bounds = sliceBounds();
+  const N = state.splitCount;
+  const labels = [];
+  sliceRatios.innerHTML = '';
+  for (let i = 0; i < N; i++) {
+    const h = bounds[i+1] - bounds[i];
+    const bar = document.createElement('div');
+    bar.className = 'ratio-bar';
+    bar.style.flex = h;
+    sliceRatios.appendChild(bar);
+    labels.push(`${h.toFixed(1)}%`);
+  }
+  sliceInfoText.textContent = labels.join(' | ');
+}
+
+const resizeObserver = new ResizeObserver(() => {
+  if (state.mode === 'split' && state.images[0]) renderSplitEditor();
+});
+resizeObserver.observe(splitEditor);
+
+// ============================================================
+// PNG SIZE ESTIMATION + STATUS DISPLAY
+// ============================================================
+function estimatePngSize(canvas) {
+  return new Promise(resolve => canvas.toBlob(b => resolve(b ? b.size : 0), 'image/png'));
+}
+
+async function updateSizeStatus() {
+  if (!state.sliceCanvases.length) return;
+  sizeStatusRow.style.display = 'flex';
+  sizeStatusValue.textContent = '計算中…';
+  sizeStatusValue.className = 'size-status-value';
+
+  const sizes = await Promise.all(state.sliceCanvases.map(estimatePngSize));
+  const maxBytes = Math.max(...sizes);
+  const mb = maxBytes / (1024 * 1024);
+
+  sizeStatusValue.textContent = `${mb.toFixed(2)} MB`;
+  if (mb > 5)      sizeStatusValue.className = 'size-status-value over';
+  else if (mb > 4) sizeStatusValue.className = 'size-status-value warn';
+  else             sizeStatusValue.className = 'size-status-value ok';
+}
+
+// ============================================================
+// COMPRESSION PIPELINE + MODALS
+// ============================================================
+function showResizeModal(maxMb) {
+  return new Promise(resolve => {
+    $('resizeModalDesc').innerHTML =
+      `最大スライスが <strong>${maxMb.toFixed(2)} MB</strong> で 5 MB を超えています。<br>
+       解像度を <strong>10% 下げる</strong>ことでPNG制限内に収めますか？`;
+    resizeModal.classList.remove('hidden');
+    $('resizeConfirmBtn').onclick = () => { resizeModal.classList.add('hidden'); resolve(true); };
+    $('resizeCancelBtn').onclick  = () => { resizeModal.classList.add('hidden'); resolve(false); };
+  });
+}
+
+function showJpegModal(maxMb) {
+  return new Promise(resolve => {
+    $('jpegModalDesc').innerHTML =
+      `リサイズ後もファイルサイズが <strong>${maxMb.toFixed(2)} MB</strong> で超過しています。<br>
+       JPEGに変換してダウンロードしますか？`;
+    jpegModal.classList.remove('hidden');
+    $('jpegConfirmBtn').onclick = () => { jpegModal.classList.add('hidden'); resolve(true); };
+    $('jpegCancelBtn').onclick  = () => { jpegModal.classList.add('hidden'); resolve(false); };
+  });
+}
+
+function scaleCanvases(canvases, factor) {
+  return canvases.map(c => {
+    const nw = Math.max(1, Math.round(c.width  * factor));
+    const nh = Math.max(1, Math.round(c.height * factor));
+    const out = document.createElement('canvas');
+    out.width = nw; out.height = nh;
+    out.getContext('2d').drawImage(c, 0, 0, nw, nh);
+    return out;
+  });
+}
+
+function setDownloadBtnLoading(label) {
+  downloadBtn.disabled = true;
+  downloadBtn.classList.add('loading');
+  downloadBtn.innerHTML = `
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+      stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite">
+      <path d="M21 12a9 9 0 11-6.219-8.56"/>
+    </svg>${label}`;
+}
+
+function resetDownloadBtn() {
+  downloadBtn.disabled = false;
+  downloadBtn.classList.remove('loading');
+  downloadBtn.innerHTML = `
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+      stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+    </svg><span id="downloadBtnText">${state.splitCount}枚をZIPでダウンロード</span>`;
+}
+
+async function compressAndDownload() {
+  if (!state.sliceCanvases.length) return;
+  setDownloadBtnLoading('処理中…');
+
+  try {
+    let workCanvases = state.sliceCanvases.slice();
+
+    setDownloadBtnLoading('サイズ確認中…');
+    const sizes = await Promise.all(workCanvases.map(estimatePngSize));
+    let maxBytes = Math.max(...sizes);
+
+    if (maxBytes <= 5 * 1024 * 1024) {
+      await downloadZip(workCanvases, 'png');
+      return;
+    }
+
+    const maxMb1 = maxBytes / (1024 * 1024);
+    const doResize = await showResizeModal(maxMb1);
+
+    if (doResize) {
+      setDownloadBtnLoading('リサイズ中…');
+      workCanvases = scaleCanvases(workCanvases, 0.9);
+      const sizes2 = await Promise.all(workCanvases.map(estimatePngSize));
+      maxBytes = Math.max(...sizes2);
+
+      if (maxBytes <= 5 * 1024 * 1024) {
+        await downloadZip(workCanvases, 'png');
+        return;
+      }
+    } else {
+      await downloadZip(workCanvases, 'png');
+      return;
+    }
+
+    const maxMb2 = maxBytes / (1024 * 1024);
+    const doJpeg = await showJpegModal(maxMb2);
+    if (doJpeg) {
+      await downloadZip(workCanvases, 'jpeg');
+    }
+
+  } catch (err) {
+    console.error(err);
+    alert('ダウンロードに失敗しました:\n' + err.message);
+  } finally {
+    resetDownloadBtn();
+  }
+}
+
+async function downloadZip(canvases, format) {
+  const mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+  const ext  = format === 'jpeg' ? 'jpg' : 'png';
+  const quality = 0.92;
+
+  setDownloadBtnLoading('ZIP生成中…');
+  const zip = new JSZip();
+  const folder = zip.folder('x_split_images');
+
+  for (let i = 0; i < canvases.length; i++) {
+    const blob = await canvasToBlob(canvases[i], mime, quality);
+    folder.file(`slice_${i+1}.${ext}`, blob);
+  }
+
+  const content = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+  triggerDownload(content, `x_split_images_${state.splitCount}cut.zip`);
+}
+
+// ============================================================
+// DOWNLOAD HANDLER
+// ============================================================
+downloadBtn.addEventListener('click', async () => {
+  if (!state.sliceCanvases.length) return;
+  await compressAndDownload();
+});
+
+function canvasToBlob(canvas, type, quality) {
+  return new Promise(resolve => canvas.toBlob(resolve, type, quality));
+}
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+// ============================================================
+// SPIN ANIMATION
+// ============================================================
+const spinStyle = document.createElement('style');
+spinStyle.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`;
+document.head.appendChild(spinStyle);
+
+// ============================================================
+// INIT
+// ============================================================
+updateUI();
+</script>
+</body>
+</html>
