@@ -1097,8 +1097,17 @@ function renderSplitEditor() {
 
   const containerW = splitEditor.offsetWidth || 310;
   const ratio = item.img.naturalWidth / item.img.naturalHeight;
-  const maxH = Math.floor(window.innerHeight * 0.60);
-  const containerH = Math.min(Math.round(containerW / ratio), maxH);
+  const maxH = Math.floor(window.innerHeight * 0.65);
+  const naturalH = Math.round(containerW / ratio);
+  let containerH, editorW;
+  if (naturalH > maxH) {
+    containerH = maxH;
+    editorW = Math.round(maxH * ratio);
+    splitEditor.style.width = editorW + 'px';
+  } else {
+    containerH = naturalH;
+    splitEditor.style.width = '';
+  }
   splitEditor.style.height = containerH + 'px';
 
   splitEditor.querySelectorAll('.divider-line, .slice-label').forEach(el => el.remove());
