@@ -1095,18 +1095,17 @@ function renderSplitEditor() {
   if (!item) return;
   splitImg.src = item.dataUrl;
 
+  splitEditor.style.width = '';
   const containerW = splitEditor.offsetWidth || 310;
   const ratio = item.img.naturalWidth / item.img.naturalHeight;
   const maxH = Math.floor(window.innerHeight * 0.65);
   const naturalH = Math.round(containerW / ratio);
-  let containerH, editorW;
+  let containerH;
   if (naturalH > maxH) {
     containerH = maxH;
-    editorW = Math.round(maxH * ratio);
-    splitEditor.style.width = editorW + 'px';
+    splitEditor.style.width = Math.round(maxH * ratio) + 'px';
   } else {
     containerH = naturalH;
-    splitEditor.style.width = '';
   }
   splitEditor.style.height = containerH + 'px';
 
